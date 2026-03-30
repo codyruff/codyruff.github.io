@@ -55,10 +55,15 @@ src/
     layout.tsx
     page.tsx
   components/
+    sections/
+      Hero.tsx
+      LoadingGlobe.tsx
     ui/
       AnimatedText.tsx
       button.tsx
+      CustomCursor.tsx
       HexPattern.tsx
+      SmokeBackground.tsx
   data/
     projects.ts
   lib/
@@ -76,6 +81,341 @@ tsconfig.json
 
 <files>
 This section contains the contents of the repository's files.
+
+<file path="src/components/sections/Hero.tsx">
+"use client";
+
+import { useRef } from "react";
+import { motion, useScroll, useTransform } from "framer-motion";
+import AnimatedText from "@/components/ui/AnimatedText";
+import HexPattern from "@/components/ui/HexPattern";
+import { SmokeBackground } from "@/components/ui/SmokeBackground";
+
+export default function Hero() {
+  const ref = useRef<HTMLElement>(null);
+
+  const { scrollYProgress } = useScroll({
+    target: ref,
+    offset: ["start start", "end start"],
+  });
+
+  const contentY = useTransform(scrollYProgress, [0, 1], ["0%", "-20%"]);
+
+  return (
+    <section
+      ref={ref}
+      className="relative w-full min-h-screen flex items-center justify-start overflow-hidden bg-navy"
+    >
+      {/* ── WebGL Smoke Background ── */}
+      <div className="absolute inset-0 pointer-events-none">
+        <SmokeBackground smokeColor="#1E3A5F" />
+      </div>
+
+      {/* ── Hex pattern overlay ── */}
+      <HexPattern opacity={0.06} />
+
+      {/* ── Tunnel arch vignette ── */}
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          background: `radial-gradient(
+            ellipse 55% 80% at 50% 110%,
+            rgba(30, 58, 95, 0.6) 0%,
+            rgba(20, 27, 45, 0.3) 40%,
+            transparent 70%
+          )`,
+        }}
+      />
+
+      {/* ── Edge vignette ── */}
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          background: `radial-gradient(
+            ellipse 90% 90% at 50% 50%,
+            transparent 55%,
+            rgba(10, 14, 26, 0.85) 100%
+          )`,
+        }}
+      />
+
+      {/* ── Main content ── */}
+      <motion.div
+        style={{ y: contentY }}
+        className="relative z-10 px-8 md:px-16 lg:px-24 pt-8"
+      >
+        {/* Eyebrow */}
+        <motion.p
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1, duration: 0.6 }}
+          className="font-mono text-gold text-xs tracking-[0.35em] uppercase mb-6"
+        >
+          Security Engineer · Raytheon
+        </motion.p>
+
+        {/* CODY — solid fill */}
+        <AnimatedText
+          text="CODY"
+          as="h1"
+          className="font-display text-cream leading-none text-[clamp(72px,14vw,180px)]"
+          stagger={0.08}
+          delay={0.3}
+        />
+
+        {/* RUFF — outlined/ghost */}
+        <AnimatedText
+          text="RUFF"
+          as="h1"
+          className="font-display leading-none text-[clamp(72px,14vw,180px)]"
+          letterClassName="[-webkit-text-stroke:1px_rgba(237,232,220,0.4)] text-transparent"
+          stagger={0.08}
+          delay={0.55}
+        />
+
+        {/* Subtitle */}
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 1.1, duration: 0.7 }}
+          className="mt-8 flex items-center gap-4"
+        >
+          <div className="w-8 h-px bg-gold opacity-60" />
+          <p className="font-body text-cream text-base md:text-lg tracking-wide opacity-70">
+            Builder · Stonehill &apos;26 · D1 Athlete
+          </p>
+        </motion.div>
+
+        {/* Scroll hint */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 2, duration: 1 }}
+          className="mt-16 flex flex-col items-start gap-2"
+        >
+          <p className="font-mono text-xs text-cream opacity-30 tracking-[0.2em] uppercase">
+            Scroll
+          </p>
+          <motion.div
+            className="w-px h-12 bg-gold opacity-40 origin-top"
+            animate={{ scaleY: [0, 1, 0] }}
+            transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
+          />
+        </motion.div>
+      </motion.div>
+
+      {/* ── Bottom fade into next section ── */}
+      <div
+        className="absolute bottom-0 left-0 right-0 h-32 pointer-events-none"
+        style={{
+          background: "linear-gradient(to bottom, transparent, #0A0E1A)",
+        }}
+      />
+    </section>
+  );
+}
+</file>
+
+<file path="src/components/ui/SmokeBackground.tsx">
+"use client";
+
+import React, { useEffect, useRef } from "react";
+
+const fragmentShaderSource = `#version 300 es
+precision highp float;
+out vec4 O;
+uniform float time;
+uniform vec2 resolution;
+uniform vec3 u_color;
+
+#define FC gl_FragCoord.xy
+#define R resolution
+#define T (time+660.)
+
+float rnd(vec2 p){p=fract(p*vec2(12.9898,78.233));p+=dot(p,p+34.56);return fract(p.x*p.y);}
+float noise(vec2 p){vec2 i=floor(p),f=fract(p),u=f*f*(3.-2.*f);return mix(mix(rnd(i),rnd(i+vec2(1,0)),u.x),mix(rnd(i+vec2(0,1)),rnd(i+1.),u.x),u.y);}
+float fbm(vec2 p){float t=.0,a=1.;for(int i=0;i<5;i++){t+=a*noise(p);p*=mat2(1,-1.2,.2,1.2)*2.;a*=.5;}return t;}
+
+void main(){
+  vec2 uv=(FC-.5*R)/R.y;
+  vec3 col=vec3(1);
+  uv.x+=.25;
+  uv*=vec2(2,1);
+
+  float n=fbm(uv*.28-vec2(T*.01,0));
+  n=noise(uv*3.+n*2.);
+
+  col.r-=fbm(uv+vec2(0,T*.015)+n);
+  col.g-=fbm(uv*1.003+vec2(0,T*.015)+n+.003);
+  col.b-=fbm(uv*1.006+vec2(0,T*.015)+n+.006);
+
+  col=mix(col, u_color, dot(col,vec3(.21,.71,.07)));
+
+  col=mix(vec3(.08),col,min(time*.1,1.));
+  col=clamp(col,.08,1.);
+  O=vec4(col,1);
+}`;
+
+class Renderer {
+  private readonly vertexSrc = "#version 300 es\nprecision highp float;\nin vec4 position;\nvoid main(){gl_Position=position;}";
+  private readonly vertices = [-1, 1, -1, -1, 1, 1, 1, -1];
+  private gl: WebGL2RenderingContext;
+  private canvas: HTMLCanvasElement;
+  private program: WebGLProgram | null = null;
+  private vs: WebGLShader | null = null;
+  private fs: WebGLShader | null = null;
+  private buffer: WebGLBuffer | null = null;
+  private color: [number, number, number] = [0.07, 0.09, 0.10];
+
+  constructor(canvas: HTMLCanvasElement, fragmentSource: string) {
+    this.canvas = canvas;
+    this.gl = canvas.getContext("webgl2") as WebGL2RenderingContext;
+    this.setup(fragmentSource);
+    this.init();
+  }
+
+  updateColor(newColor: [number, number, number]) {
+    this.color = newColor;
+  }
+
+  updateScale() {
+    const dpr = Math.max(1, window.devicePixelRatio);
+    const { innerWidth: width, innerHeight: height } = window;
+    this.canvas.width = width * dpr;
+    this.canvas.height = height * dpr;
+    this.gl.viewport(0, 0, this.canvas.width, this.canvas.height);
+  }
+
+  private compile(shader: WebGLShader, source: string) {
+    const gl = this.gl;
+    gl.shaderSource(shader, source);
+    gl.compileShader(shader);
+  }
+
+  reset() {
+    const { gl, program, vs, fs } = this;
+    if (!program) return;
+    if (vs) { gl.detachShader(program, vs); gl.deleteShader(vs); }
+    if (fs) { gl.detachShader(program, fs); gl.deleteShader(fs); }
+    gl.deleteProgram(program);
+    this.program = null;
+  }
+
+  private setup(fragmentSource: string) {
+    const gl = this.gl;
+    this.vs = gl.createShader(gl.VERTEX_SHADER)!;
+    this.fs = gl.createShader(gl.FRAGMENT_SHADER)!;
+    const program = gl.createProgram()!;
+    this.compile(this.vs, this.vertexSrc);
+    this.compile(this.fs, fragmentSource);
+    this.program = program;
+    gl.attachShader(program, this.vs);
+    gl.attachShader(program, this.fs);
+    gl.linkProgram(program);
+  }
+
+  private init() {
+    const { gl, program } = this;
+    if (!program) return;
+    this.buffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(this.vertices), gl.STATIC_DRAW);
+    const position = gl.getAttribLocation(program, "position");
+    gl.enableVertexAttribArray(position);
+    gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0);
+    Object.assign(program, {
+      resolution: gl.getUniformLocation(program, "resolution"),
+      time:       gl.getUniformLocation(program, "time"),
+      u_color:    gl.getUniformLocation(program, "u_color"),
+    });
+  }
+
+  render(now = 0) {
+    const { gl, program, buffer, canvas } = this;
+    if (!program || !gl.isProgram(program)) return;
+    gl.clearColor(0, 0, 0, 1);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.useProgram(program);
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+    gl.uniform2f((program as any).resolution, canvas.width, canvas.height);
+    gl.uniform1f((program as any).time, now * 1e-3);
+    gl.uniform3fv((program as any).u_color, this.color);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  }
+}
+
+interface SmokeBackgroundProps {
+  smokeColor?: string;
+  className?: string;
+}
+
+export const SmokeBackground: React.FC<SmokeBackgroundProps> = ({
+  smokeColor = "#1E3A5F",
+  className = "",
+}) => {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const rendererRef = useRef<Renderer | null>(null);
+
+  useEffect(() => {
+    if (!canvasRef.current) return;
+    const canvas = canvasRef.current;
+    const renderer = new Renderer(canvas, fragmentShaderSource);
+    rendererRef.current = renderer;
+
+    const handleResize = () => renderer.updateScale();
+    handleResize();
+    window.addEventListener("resize", handleResize);
+
+    let animationFrameId: number;
+    const loop = (now: number) => {
+      renderer.render(now);
+      animationFrameId = requestAnimationFrame(loop);
+    };
+    loop(0);
+
+    return () => {
+      window.removeEventListener("resize", handleResize);
+      cancelAnimationFrame(animationFrameId);
+      renderer.reset();
+    };
+  }, []);
+
+  useEffect(() => {
+    const renderer = rendererRef.current;
+    if (!renderer) return;
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(smokeColor);
+    if (result) {
+      renderer.updateColor([
+        parseInt(result[1], 16) / 255,
+        parseInt(result[2], 16) / 255,
+        parseInt(result[3], 16) / 255,
+      ]);
+    }
+  }, [smokeColor]);
+
+  return <canvas ref={canvasRef} className={`w-full h-full block ${className}`} />;
+};
+</file>
+
+<file path="public/file.svg">
+<svg fill="none" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><path d="M14.5 13.5V5.41a1 1 0 0 0-.3-.7L9.8.29A1 1 0 0 0 9.08 0H1.5v13.5A2.5 2.5 0 0 0 4 16h8a2.5 2.5 0 0 0 2.5-2.5m-1.5 0v-7H8v-5H3v12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1M9.5 5V2.12L12.38 5zM5.13 5h-.62v1.25h2.12V5zm-.62 3h7.12v1.25H4.5zm.62 3h-.62v1.25h7.12V11z" clip-rule="evenodd" fill="#666" fill-rule="evenodd"/></svg>
+</file>
+
+<file path="public/globe.svg">
+<svg fill="none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><g clip-path="url(#a)"><path fill-rule="evenodd" clip-rule="evenodd" d="M10.27 14.1a6.5 6.5 0 0 0 3.67-3.45q-1.24.21-2.7.34-.31 1.83-.97 3.1M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16m.48-1.52a7 7 0 0 1-.96 0H7.5a4 4 0 0 1-.84-1.32q-.38-.89-.63-2.08a40 40 0 0 0 3.92 0q-.25 1.2-.63 2.08a4 4 0 0 1-.84 1.31zm2.94-4.76q1.66-.15 2.95-.43a7 7 0 0 0 0-2.58q-1.3-.27-2.95-.43a18 18 0 0 1 0 3.44m-1.27-3.54a17 17 0 0 1 0 3.64 39 39 0 0 1-4.3 0 17 17 0 0 1 0-3.64 39 39 0 0 1 4.3 0m1.1-1.17q1.45.13 2.69.34a6.5 6.5 0 0 0-3.67-3.44q.65 1.26.98 3.1M8.48 1.5l.01.02q.41.37.84 1.31.38.89.63 2.08a40 40 0 0 0-3.92 0q.25-1.2.63-2.08a4 4 0 0 1 .85-1.32 7 7 0 0 1 .96 0m-2.75.4a6.5 6.5 0 0 0-3.67 3.44 29 29 0 0 1 2.7-.34q.31-1.83.97-3.1M4.58 6.28q-1.66.16-2.95.43a7 7 0 0 0 0 2.58q1.3.27 2.95.43a18 18 0 0 1 0-3.44m.17 4.71q-1.45-.12-2.69-.34a6.5 6.5 0 0 0 3.67 3.44q-.65-1.27-.98-3.1" fill="#666"/></g><defs><clipPath id="a"><path fill="#fff" d="M0 0h16v16H0z"/></clipPath></defs></svg>
+</file>
+
+<file path="public/next.svg">
+<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 394 80"><path fill="#000" d="M262 0h68.5v12.7h-27.2v66.6h-13.6V12.7H262V0ZM149 0v12.7H94v20.4h44.3v12.6H94v21h55v12.6H80.5V0h68.7zm34.3 0h-17.8l63.8 79.4h17.9l-32-39.7 32-39.6h-17.9l-23 28.6-23-28.6zm18.3 56.7-9-11-27.1 33.7h17.8l18.3-22.7z"/><path fill="#000" d="M81 79.3 17 0H0v79.3h13.6V17l50.2 62.3H81Zm252.6-.4c-1 0-1.8-.4-2.5-1s-1.1-1.6-1.1-2.6.3-1.8 1-2.5 1.6-1 2.6-1 1.8.3 2.5 1a3.4 3.4 0 0 1 .6 4.3 3.7 3.7 0 0 1-3 1.8zm23.2-33.5h6v23.3c0 2.1-.4 4-1.3 5.5a9.1 9.1 0 0 1-3.8 3.5c-1.6.8-3.5 1.3-5.7 1.3-2 0-3.7-.4-5.3-1s-2.8-1.8-3.7-3.2c-.9-1.3-1.4-3-1.4-5h6c.1.8.3 1.6.7 2.2s1 1.2 1.6 1.5c.7.4 1.5.5 2.4.5 1 0 1.8-.2 2.4-.6a4 4 0 0 0 1.6-1.8c.3-.8.5-1.8.5-3V45.5zm30.9 9.1a4.4 4.4 0 0 0-2-3.3 7.5 7.5 0 0 0-4.3-1.1c-1.3 0-2.4.2-3.3.5-.9.4-1.6 1-2 1.6a3.5 3.5 0 0 0-.3 4c.3.5.7.9 1.3 1.2l1.8 1 2 .5 3.2.8c1.3.3 2.5.7 3.7 1.2a13 13 0 0 1 3.2 1.8 8.1 8.1 0 0 1 3 6.5c0 2-.5 3.7-1.5 5.1a10 10 0 0 1-4.4 3.5c-1.8.8-4.1 1.2-6.8 1.2-2.6 0-4.9-.4-6.8-1.2-2-.8-3.4-2-4.5-3.5a10 10 0 0 1-1.7-5.6h6a5 5 0 0 0 3.5 4.6c1 .4 2.2.6 3.4.6 1.3 0 2.5-.2 3.5-.6 1-.4 1.8-1 2.4-1.7a4 4 0 0 0 .8-2.4c0-.9-.2-1.6-.7-2.2a11 11 0 0 0-2.1-1.4l-3.2-1-3.8-1c-2.8-.7-5-1.7-6.6-3.2a7.2 7.2 0 0 1-2.4-5.7 8 8 0 0 1 1.7-5 10 10 0 0 1 4.3-3.5c2-.8 4-1.2 6.4-1.2 2.3 0 4.4.4 6.2 1.2 1.8.8 3.2 2 4.3 3.4 1 1.4 1.5 3 1.5 5h-5.8z"/></svg>
+</file>
+
+<file path="public/vercel.svg">
+<svg fill="none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1155 1000"><path d="m577.3 0 577.4 1000H0z" fill="#fff"/></svg>
+</file>
+
+<file path="public/window.svg">
+<svg fill="none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path fill-rule="evenodd" clip-rule="evenodd" d="M1.5 2.5h13v10a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1zM0 1h16v11.5a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 0 12.5zm3.75 4.5a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5M7 4.75a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0m1.75.75a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5" fill="#666"/></svg>
+</file>
 
 <file path="src/components/ui/AnimatedText.tsx">
 "use client";
@@ -148,23 +488,232 @@ const letterVariants: Variants = {
       aria-label={text}
     >
       {words.map((word, wordIndex) => (
-        <span
-          key={wordIndex}
-          className="flex mr-[0.25em] last:mr-0"
+  <span
+    key={wordIndex}
+    className="flex"
+  >
+    {word.split("").map((letter, letterIndex) => (
+      <motion.span
+        key={letterIndex}
+        variants={letterVariants}
+        className={cn("inline-block", letterClassName)}
+        aria-hidden="true"
+      >
+        {letter}
+      </motion.span>
+    ))}
+    {/* Explicit space after every word except the last */}
+    {wordIndex < words.length - 1 && (
+      <motion.span
+        variants={letterVariants}
+        className="inline-block"
+        aria-hidden="true"
         >
-          {word.split("").map((letter, letterIndex) => (
-            <motion.span
-              key={letterIndex}
-              variants={letterVariants}
-              className={cn("inline-block", letterClassName)}
-              aria-hidden="true"
-            >
-              {letter}
-            </motion.span>
-          ))}
-        </span>
-      ))}
+            &nbsp;
+        </motion.span>
+        )}
+    </span>
+    ))}
     </motion.div>
+  );
+}
+</file>
+
+<file path="src/components/ui/button.tsx">
+import * as React from "react"
+import { cva, type VariantProps } from "class-variance-authority"
+import { Slot } from "radix-ui"
+
+import { cn } from "@/lib/utils"
+
+const buttonVariants = cva(
+  "group/button inline-flex shrink-0 items-center justify-center rounded-lg border border-transparent bg-clip-padding text-sm font-medium whitespace-nowrap transition-all outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  {
+    variants: {
+      variant: {
+        default: "bg-primary text-primary-foreground [a]:hover:bg-primary/80",
+        outline:
+          "border-border bg-background hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
+        secondary:
+          "bg-secondary text-secondary-foreground hover:bg-secondary/80 aria-expanded:bg-secondary aria-expanded:text-secondary-foreground",
+        ghost:
+          "hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:hover:bg-muted/50",
+        destructive:
+          "bg-destructive/10 text-destructive hover:bg-destructive/20 focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:hover:bg-destructive/30 dark:focus-visible:ring-destructive/40",
+        link: "text-primary underline-offset-4 hover:underline",
+      },
+      size: {
+        default:
+          "h-8 gap-1.5 px-2.5 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2",
+        xs: "h-6 gap-1 rounded-[min(var(--radius-md),10px)] px-2 text-xs in-data-[slot=button-group]:rounded-lg has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*='size-'])]:size-3",
+        sm: "h-7 gap-1 rounded-[min(var(--radius-md),12px)] px-2.5 text-[0.8rem] in-data-[slot=button-group]:rounded-lg has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*='size-'])]:size-3.5",
+        lg: "h-9 gap-1.5 px-2.5 has-data-[icon=inline-end]:pr-3 has-data-[icon=inline-start]:pl-3",
+        icon: "size-8",
+        "icon-xs":
+          "size-6 rounded-[min(var(--radius-md),10px)] in-data-[slot=button-group]:rounded-lg [&_svg:not([class*='size-'])]:size-3",
+        "icon-sm":
+          "size-7 rounded-[min(var(--radius-md),12px)] in-data-[slot=button-group]:rounded-lg",
+        "icon-lg": "size-9",
+      },
+    },
+    defaultVariants: {
+      variant: "default",
+      size: "default",
+    },
+  }
+)
+
+function Button({
+  className,
+  variant = "default",
+  size = "default",
+  asChild = false,
+  ...props
+}: React.ComponentProps<"button"> &
+  VariantProps<typeof buttonVariants> & {
+    asChild?: boolean
+  }) {
+  const Comp = asChild ? Slot.Root : "button"
+
+  return (
+    <Comp
+      data-slot="button"
+      data-variant={variant}
+      data-size={size}
+      className={cn(buttonVariants({ variant, size, className }))}
+      {...props}
+    />
+  )
+}
+
+export { Button, buttonVariants }
+</file>
+
+<file path="src/components/ui/CustomCursor.tsx">
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import { motion, useMotionValue, useSpring } from "framer-motion";
+
+type Trail = { x: number; y: number; id: number };
+
+export default function CustomCursor() {
+  const cursorRef = useRef<HTMLDivElement>(null);
+  const [trails, setTrails] = useState<Trail[]>([]);
+  const [isHovering, setIsHovering] = useState(false);
+  const [isVisible, setIsVisible] = useState(false);
+  const trailIdRef = useRef(0);
+
+  // Raw mouse position
+  const mouseX = useMotionValue(0);
+  const mouseY = useMotionValue(0);
+
+  // Smoothed cursor position — spring gives it the "gliding" feel
+  const springConfig = { damping: 28, stiffness: 300, mass: 0.5 };
+  const cursorX = useSpring(mouseX, springConfig);
+  const cursorY = useSpring(mouseY, springConfig);
+
+  useEffect(() => {
+    let trailTimeout: ReturnType<typeof setTimeout>;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      mouseX.set(e.clientX);
+      mouseY.set(e.clientY);
+
+      if (!isVisible) setIsVisible(true);
+
+      // Add trail particle
+      const newTrail: Trail = {
+        x: e.clientX,
+        y: e.clientY,
+        id: trailIdRef.current++,
+      };
+
+      setTrails((prev) => [...prev.slice(-8), newTrail]);
+
+      // Clear old trails
+      clearTimeout(trailTimeout);
+      trailTimeout = setTimeout(() => setTrails([]), 120);
+    };
+
+    const handleMouseEnter = () => setIsVisible(true);
+    const handleMouseLeave = () => setIsVisible(false);
+
+    // Detect hoverable elements for cursor scale effect
+    const handleHoverStart = () => setIsHovering(true);
+    const handleHoverEnd = () => setIsHovering(false);
+
+    const hoverables = document.querySelectorAll(
+      "a, button, [data-hoverable]"
+    );
+    hoverables.forEach((el) => {
+      el.addEventListener("mouseenter", handleHoverStart);
+      el.addEventListener("mouseleave", handleHoverEnd);
+    });
+
+    window.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseenter", handleMouseEnter);
+    document.addEventListener("mouseleave", handleMouseLeave);
+
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseenter", handleMouseEnter);
+      document.removeEventListener("mouseleave", handleMouseLeave);
+      hoverables.forEach((el) => {
+        el.removeEventListener("mouseenter", handleHoverStart);
+        el.removeEventListener("mouseleave", handleHoverEnd);
+      });
+      clearTimeout(trailTimeout);
+    };
+  }, [mouseX, mouseY, isVisible]);
+
+  return (
+    <>
+      {/* Trail particles */}
+      {trails.map((trail, index) => (
+        <div
+          key={trail.id}
+          className="fixed pointer-events-none z-[9998] rounded-full"
+          style={{
+            left: trail.x,
+            top: trail.y,
+            width: `${4 + index * 0.8}px`,
+            height: `${4 + index * 0.8}px`,
+            backgroundColor: "#B8962E",
+            opacity: (index / trails.length) * 0.35,
+            transform: "translate(-50%, -50%)",
+            transition: "opacity 0.1s ease",
+          }}
+        />
+      ))}
+
+      {/* Main cursor orb */}
+      <motion.div
+        ref={cursorRef}
+        className="fixed pointer-events-none z-[9999] rounded-full"
+        style={{
+          x: cursorX,
+          y: cursorY,
+          translateX: "-50%",
+          translateY: "-50%",
+          opacity: isVisible ? 1 : 0,
+        }}
+        animate={{
+          width: isHovering ? 40 : 16,
+          height: isHovering ? 40 : 16,
+          backgroundColor: isHovering
+            ? "rgba(184, 150, 46, 0.15)"
+            : "rgba(184, 150, 46, 0.9)",
+          border: isHovering
+            ? "1.5px solid rgba(184, 150, 46, 0.8)"
+            : "none",
+          boxShadow: isHovering
+            ? "0 0 20px rgba(184, 150, 46, 0.3)"
+            : "0 0 10px rgba(184, 150, 46, 0.6)",
+        }}
+        transition={{ duration: 0.15, ease: "easeOut" }}
+      />
+    </>
   );
 }
 </file>
@@ -280,96 +829,6 @@ export default function HexPattern({
 }
 </file>
 
-<file path="public/file.svg">
-<svg fill="none" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><path d="M14.5 13.5V5.41a1 1 0 0 0-.3-.7L9.8.29A1 1 0 0 0 9.08 0H1.5v13.5A2.5 2.5 0 0 0 4 16h8a2.5 2.5 0 0 0 2.5-2.5m-1.5 0v-7H8v-5H3v12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1M9.5 5V2.12L12.38 5zM5.13 5h-.62v1.25h2.12V5zm-.62 3h7.12v1.25H4.5zm.62 3h-.62v1.25h7.12V11z" clip-rule="evenodd" fill="#666" fill-rule="evenodd"/></svg>
-</file>
-
-<file path="public/globe.svg">
-<svg fill="none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><g clip-path="url(#a)"><path fill-rule="evenodd" clip-rule="evenodd" d="M10.27 14.1a6.5 6.5 0 0 0 3.67-3.45q-1.24.21-2.7.34-.31 1.83-.97 3.1M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16m.48-1.52a7 7 0 0 1-.96 0H7.5a4 4 0 0 1-.84-1.32q-.38-.89-.63-2.08a40 40 0 0 0 3.92 0q-.25 1.2-.63 2.08a4 4 0 0 1-.84 1.31zm2.94-4.76q1.66-.15 2.95-.43a7 7 0 0 0 0-2.58q-1.3-.27-2.95-.43a18 18 0 0 1 0 3.44m-1.27-3.54a17 17 0 0 1 0 3.64 39 39 0 0 1-4.3 0 17 17 0 0 1 0-3.64 39 39 0 0 1 4.3 0m1.1-1.17q1.45.13 2.69.34a6.5 6.5 0 0 0-3.67-3.44q.65 1.26.98 3.1M8.48 1.5l.01.02q.41.37.84 1.31.38.89.63 2.08a40 40 0 0 0-3.92 0q.25-1.2.63-2.08a4 4 0 0 1 .85-1.32 7 7 0 0 1 .96 0m-2.75.4a6.5 6.5 0 0 0-3.67 3.44 29 29 0 0 1 2.7-.34q.31-1.83.97-3.1M4.58 6.28q-1.66.16-2.95.43a7 7 0 0 0 0 2.58q1.3.27 2.95.43a18 18 0 0 1 0-3.44m.17 4.71q-1.45-.12-2.69-.34a6.5 6.5 0 0 0 3.67 3.44q-.65-1.27-.98-3.1" fill="#666"/></g><defs><clipPath id="a"><path fill="#fff" d="M0 0h16v16H0z"/></clipPath></defs></svg>
-</file>
-
-<file path="public/next.svg">
-<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 394 80"><path fill="#000" d="M262 0h68.5v12.7h-27.2v66.6h-13.6V12.7H262V0ZM149 0v12.7H94v20.4h44.3v12.6H94v21h55v12.6H80.5V0h68.7zm34.3 0h-17.8l63.8 79.4h17.9l-32-39.7 32-39.6h-17.9l-23 28.6-23-28.6zm18.3 56.7-9-11-27.1 33.7h17.8l18.3-22.7z"/><path fill="#000" d="M81 79.3 17 0H0v79.3h13.6V17l50.2 62.3H81Zm252.6-.4c-1 0-1.8-.4-2.5-1s-1.1-1.6-1.1-2.6.3-1.8 1-2.5 1.6-1 2.6-1 1.8.3 2.5 1a3.4 3.4 0 0 1 .6 4.3 3.7 3.7 0 0 1-3 1.8zm23.2-33.5h6v23.3c0 2.1-.4 4-1.3 5.5a9.1 9.1 0 0 1-3.8 3.5c-1.6.8-3.5 1.3-5.7 1.3-2 0-3.7-.4-5.3-1s-2.8-1.8-3.7-3.2c-.9-1.3-1.4-3-1.4-5h6c.1.8.3 1.6.7 2.2s1 1.2 1.6 1.5c.7.4 1.5.5 2.4.5 1 0 1.8-.2 2.4-.6a4 4 0 0 0 1.6-1.8c.3-.8.5-1.8.5-3V45.5zm30.9 9.1a4.4 4.4 0 0 0-2-3.3 7.5 7.5 0 0 0-4.3-1.1c-1.3 0-2.4.2-3.3.5-.9.4-1.6 1-2 1.6a3.5 3.5 0 0 0-.3 4c.3.5.7.9 1.3 1.2l1.8 1 2 .5 3.2.8c1.3.3 2.5.7 3.7 1.2a13 13 0 0 1 3.2 1.8 8.1 8.1 0 0 1 3 6.5c0 2-.5 3.7-1.5 5.1a10 10 0 0 1-4.4 3.5c-1.8.8-4.1 1.2-6.8 1.2-2.6 0-4.9-.4-6.8-1.2-2-.8-3.4-2-4.5-3.5a10 10 0 0 1-1.7-5.6h6a5 5 0 0 0 3.5 4.6c1 .4 2.2.6 3.4.6 1.3 0 2.5-.2 3.5-.6 1-.4 1.8-1 2.4-1.7a4 4 0 0 0 .8-2.4c0-.9-.2-1.6-.7-2.2a11 11 0 0 0-2.1-1.4l-3.2-1-3.8-1c-2.8-.7-5-1.7-6.6-3.2a7.2 7.2 0 0 1-2.4-5.7 8 8 0 0 1 1.7-5 10 10 0 0 1 4.3-3.5c2-.8 4-1.2 6.4-1.2 2.3 0 4.4.4 6.2 1.2 1.8.8 3.2 2 4.3 3.4 1 1.4 1.5 3 1.5 5h-5.8z"/></svg>
-</file>
-
-<file path="public/vercel.svg">
-<svg fill="none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1155 1000"><path d="m577.3 0 577.4 1000H0z" fill="#fff"/></svg>
-</file>
-
-<file path="public/window.svg">
-<svg fill="none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path fill-rule="evenodd" clip-rule="evenodd" d="M1.5 2.5h13v10a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1zM0 1h16v11.5a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 0 12.5zm3.75 4.5a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5M7 4.75a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0m1.75.75a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5" fill="#666"/></svg>
-</file>
-
-<file path="src/components/ui/button.tsx">
-import * as React from "react"
-import { cva, type VariantProps } from "class-variance-authority"
-import { Slot } from "radix-ui"
-
-import { cn } from "@/lib/utils"
-
-const buttonVariants = cva(
-  "group/button inline-flex shrink-0 items-center justify-center rounded-lg border border-transparent bg-clip-padding text-sm font-medium whitespace-nowrap transition-all outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
-  {
-    variants: {
-      variant: {
-        default: "bg-primary text-primary-foreground [a]:hover:bg-primary/80",
-        outline:
-          "border-border bg-background hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
-        secondary:
-          "bg-secondary text-secondary-foreground hover:bg-secondary/80 aria-expanded:bg-secondary aria-expanded:text-secondary-foreground",
-        ghost:
-          "hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:hover:bg-muted/50",
-        destructive:
-          "bg-destructive/10 text-destructive hover:bg-destructive/20 focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:hover:bg-destructive/30 dark:focus-visible:ring-destructive/40",
-        link: "text-primary underline-offset-4 hover:underline",
-      },
-      size: {
-        default:
-          "h-8 gap-1.5 px-2.5 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2",
-        xs: "h-6 gap-1 rounded-[min(var(--radius-md),10px)] px-2 text-xs in-data-[slot=button-group]:rounded-lg has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*='size-'])]:size-3",
-        sm: "h-7 gap-1 rounded-[min(var(--radius-md),12px)] px-2.5 text-[0.8rem] in-data-[slot=button-group]:rounded-lg has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*='size-'])]:size-3.5",
-        lg: "h-9 gap-1.5 px-2.5 has-data-[icon=inline-end]:pr-3 has-data-[icon=inline-start]:pl-3",
-        icon: "size-8",
-        "icon-xs":
-          "size-6 rounded-[min(var(--radius-md),10px)] in-data-[slot=button-group]:rounded-lg [&_svg:not([class*='size-'])]:size-3",
-        "icon-sm":
-          "size-7 rounded-[min(var(--radius-md),12px)] in-data-[slot=button-group]:rounded-lg",
-        "icon-lg": "size-9",
-      },
-    },
-    defaultVariants: {
-      variant: "default",
-      size: "default",
-    },
-  }
-)
-
-function Button({
-  className,
-  variant = "default",
-  size = "default",
-  asChild = false,
-  ...props
-}: React.ComponentProps<"button"> &
-  VariantProps<typeof buttonVariants> & {
-    asChild?: boolean
-  }) {
-  const Comp = asChild ? Slot.Root : "button"
-
-  return (
-    <Comp
-      data-slot="button"
-      data-variant={variant}
-      data-size={size}
-      className={cn(buttonVariants({ variant, size, className }))}
-      {...props}
-    />
-  )
-}
-
-export { Button, buttonVariants }
-</file>
-
 <file path="src/data/projects.ts">
 export type Project = {
   id: string;
@@ -414,52 +873,6 @@ import { twMerge } from "tailwind-merge"
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
-</file>
-
-<file path=".gitignore">
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
-
-# dependencies
-/node_modules
-/.pnp
-.pnp.*
-.yarn/*
-!.yarn/patches
-!.yarn/plugins
-!.yarn/releases
-!.yarn/versions
-
-# testing
-/coverage
-
-# next.js
-/.next/
-/out/
-
-# production
-/build
-
-# misc
-.DS_Store
-*.pem
-
-# debug
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-.pnpm-debug.log*
-
-# env files (can opt-in for committing if needed)
-.env*
-
-# vercel
-.vercel
-
-# typescript
-*.tsbuildinfo
-next-env.d.ts
-
-.DS_Store
 </file>
 
 <file path="components.json">
@@ -570,6 +983,304 @@ The easiest way to deploy your Next.js app is to use the [Vercel Platform](https
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
 </file>
 
+<file path="src/components/sections/LoadingGlobe.tsx">
+"use client";
+
+import { useEffect, useRef, useCallback, useState } from "react";
+import createGlobe from "cobe";
+import { motion, AnimatePresence } from "framer-motion";
+
+type LoadingGlobeProps = {
+  onComplete: () => void;
+};
+
+const MARKERS = [
+  { location: [42.0195, -71.1022] as [number, number], size: 0.06 }, // Easton MA — home
+  { location: [38.95,  -77.45]   as [number, number], size: 0.03 }, // Washington DC
+  { location: [37.62, -122.38]   as [number, number], size: 0.03 }, // San Francisco
+  { location: [49.01,   2.55]    as [number, number], size: 0.03 }, // Paris
+  { location: [35.55, 139.78]    as [number, number], size: 0.03 }, // Tokyo
+  { location: [-33.95, 151.18]   as [number, number], size: 0.03 }, // Sydney
+  { location: [1.36,  103.99]    as [number, number], size: 0.03 }, // Singapore
+];
+
+const ARCS = [
+  { from: [42.0195, -71.1022] as [number, number], to: [49.01, 2.55]    as [number, number] },
+  { from: [42.0195, -71.1022] as [number, number], to: [35.55, 139.78]  as [number, number] },
+  { from: [42.0195, -71.1022] as [number, number], to: [37.62, -122.38] as [number, number] },
+  { from: [42.0195, -71.1022] as [number, number], to: [-33.95, 151.18] as [number, number] },
+  { from: [42.0195, -71.1022] as [number, number], to: [1.36, 103.99]   as [number, number] },
+  { from: [38.95,  -77.45]    as [number, number], to: [49.01, 2.55]    as [number, number] },
+];
+
+export default function LoadingGlobe({ onComplete }: LoadingGlobeProps) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const pointerInteracting = useRef<{ x: number; y: number } | null>(null);
+  const dragOffset = useRef({ phi: 0, theta: 0 });
+  const phiOffsetRef = useRef(0);
+  const thetaOffsetRef = useRef(0);
+  const isPausedRef = useRef(false);
+  const [visible, setVisible] = useState(true);
+  const [textVisible, setTextVisible] = useState(false);
+
+  // Timers — show text, hide text, dismiss globe
+  useEffect(() => {
+    const showText = setTimeout(() => setTextVisible(true), 600);
+    const hideText = setTimeout(() => setTextVisible(false), 2800);
+    const dismiss  = setTimeout(() => {
+      setVisible(false);
+      setTimeout(onComplete, 800);
+    }, 3200);
+    return () => {
+      clearTimeout(showText);
+      clearTimeout(hideText);
+      clearTimeout(dismiss);
+    };
+  }, [onComplete]);
+
+  // Drag interaction
+  const handlePointerDown = useCallback((e: React.PointerEvent) => {
+    pointerInteracting.current = { x: e.clientX, y: e.clientY };
+    isPausedRef.current = true;
+  }, []);
+
+  const handlePointerUp = useCallback(() => {
+    if (pointerInteracting.current !== null) {
+      phiOffsetRef.current += dragOffset.current.phi;
+      thetaOffsetRef.current += dragOffset.current.theta;
+      dragOffset.current = { phi: 0, theta: 0 };
+    }
+    pointerInteracting.current = null;
+    isPausedRef.current = false;
+  }, []);
+
+  useEffect(() => {
+    const handlePointerMove = (e: PointerEvent) => {
+      if (pointerInteracting.current !== null) {
+        dragOffset.current = {
+          phi:   (e.clientX - pointerInteracting.current.x) / 300,
+          theta: (e.clientY - pointerInteracting.current.y) / 1000,
+        };
+      }
+    };
+    window.addEventListener("pointermove", handlePointerMove, { passive: true });
+    window.addEventListener("pointerup", handlePointerUp, { passive: true });
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+    };
+  }, [handlePointerUp]);
+
+  // Globe init
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    let globe: ReturnType<typeof createGlobe> | null = null;
+    let animationId: number;
+    let phi = 0;
+
+    function init() {
+      const width = canvas!.offsetWidth;
+      if (width === 0 || globe) return;
+
+      globe = createGlobe(canvas!, {
+        devicePixelRatio: Math.min(window.devicePixelRatio || 1, 2),
+        width,
+        height: width,
+        phi: 0,
+        theta: 0.3,
+        dark: 1,
+        diffuse: 1.2,
+        mapSamples: 16000,
+        mapBrightness: 6,
+        baseColor:   [0.12, 0.22, 0.37],  // steel #1E3A5F
+        markerColor: [0.72, 0.59, 0.18],  // gold  #B8962E
+        glowColor:   [0.07, 0.09, 0.10],  // dark navy glow
+        markers: MARKERS,
+        arcs: ARCS,
+        arcColor:   ["rgba(184,150,46,0.9)", "rgba(184,150,46,0.1)"],
+        arcWidth:    0.8,
+        arcHeight:   0.3,
+        opacity:     0.8,
+      } as any); // eslint-disable-line @typescript-eslint/no-explicit-any
+
+      function animate() {
+        if (!isPausedRef.current) phi += 0.003;
+        globe!.update({
+          phi:   phi + phiOffsetRef.current + dragOffset.current.phi,
+          theta: 0.3 + thetaOffsetRef.current + dragOffset.current.theta,
+        });
+        animationId = requestAnimationFrame(animate);
+      }
+      animate();
+      setTimeout(() => { if (canvas) canvas.style.opacity = "1"; });
+    }
+
+    if (canvas.offsetWidth > 0) {
+      init();
+    } else {
+      const ro = new ResizeObserver((entries) => {
+        if (entries[0]?.contentRect.width > 0) {
+          ro.disconnect();
+          init();
+        }
+      });
+      ro.observe(canvas);
+      return () => ro.disconnect();
+    }
+
+    return () => {
+      if (animationId) cancelAnimationFrame(animationId);
+      if (globe) globe.destroy();
+    };
+  }, []);
+
+  return (
+    <AnimatePresence>
+      {visible && (
+        <motion.div
+          key="loading-globe"
+          className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-navy"
+          initial={{ opacity: 1 }}
+          exit={{ opacity: 0, scale: 1.04, transition: { duration: 0.8, ease: "easeInOut" } }}
+        >
+          {/* Globe */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.85 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 1, ease: "easeOut" }}
+            className="relative w-[300px] h-[300px] md:w-[420px] md:h-[420px]"
+          >
+            <canvas
+              ref={canvasRef}
+              onPointerDown={handlePointerDown}
+              style={{
+                width: "100%",
+                height: "100%",
+                opacity: 0,
+                transition: "opacity 1.2s ease",
+                borderRadius: "50%",
+                touchAction: "none",
+              }}
+            />
+            {/* Edge fade */}
+            <div
+              className="absolute inset-0 rounded-full pointer-events-none"
+              style={{
+                background: "radial-gradient(circle, transparent 45%, #0A0E1A 78%)",
+              }}
+            />
+          </motion.div>
+
+          {/* Text */}
+          <AnimatePresence>
+            {textVisible && (
+              <motion.div
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.5 }}
+                className="mt-8 flex flex-col items-center gap-3"
+              >
+                <p className="font-mono text-gold text-sm tracking-[0.3em] uppercase">
+                  Connecting to Cody&apos;s World...
+                </p>
+                <div className="flex gap-1.5">
+                  {[0, 1, 2, 3, 4].map((i) => (
+                    <motion.div
+                      key={i}
+                      className="w-1 h-1 rounded-full bg-gold"
+                      animate={{ opacity: [0.2, 1, 0.2] }}
+                      transition={{ duration: 1.2, repeat: Infinity, delay: i * 0.15, ease: "easeInOut" }}
+                    />
+                  ))}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+</file>
+
+<file path=".gitignore">
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env files (can opt-in for committing if needed)
+.env*
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+.DS_Store
+</file>
+
+<file path="tailwind.config.ts">
+// tailwind.config.ts
+import type { Config } from "tailwindcss";
+
+const config: Config = {
+  content: ["./src/**/*.{ts,tsx}"],
+  theme: {
+    extend: {
+      colors: {
+        navy:  "#0A0E1A",
+        steel: "#1E3A5F",
+        gold:  "#B8962E",
+        sage:  "#7A9E7E",
+        cream: "#EDE8DC",
+        slate: "#141B2D",
+      },
+      fontFamily: {
+        display: ["var(--font-display)", "sans-serif"],
+        body:    ["var(--font-body)", "sans-serif"],
+        mono:    ["var(--font-mono)", "monospace"],
+        },
+    },
+  },
+  plugins: [],
+};
+
+export default config;
+</file>
+
 <file path="tsconfig.json">
 {
   "compilerOptions": {
@@ -619,146 +1330,55 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
 import type { Metadata } from "next";
 import { Barlow_Condensed, Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
+import CustomCursor from "@/components/ui/CustomCursor";
 
-/* ── Font Definitions ── */
 const barlowCondensed = Barlow_Condensed({
   subsets: ["latin"],
   weight: ["400", "600", "700", "900"],
-  variable: "--font-display",
+  variable: "--font-display-next",  // ← renamed
   display: "swap",
 });
 
 const inter = Inter({
   subsets: ["latin"],
   weight: ["300", "400", "500", "600"],
-  variable: "--font-body",
+  variable: "--font-body-next",     // ← renamed
   display: "swap",
 });
 
 const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin"],
   weight: ["400", "500"],
-  variable: "--font-mono",
+  variable: "--font-mono-next",     // ← renamed
   display: "swap",
 });
 
-/* ── Metadata (SEO + Open Graph) ── */
 export const metadata: Metadata = {
   title: "Cody Ruff — Security Engineer",
-  description:
-    "Security Engineer, builder, and D1 athlete. Incoming engineer at Raytheon. Stonehill College '26.",
+  description: "Security Engineer, builder, and D1 athlete. Incoming engineer at Raytheon. Stonehill College '26.",
   openGraph: {
     title: "Cody Ruff — Security Engineer",
     description: "Security Engineer, builder, and D1 athlete.",
     url: "https://codyruff.dev",
     siteName: "Cody Ruff",
-    images: [
-      {
-        url: "/headshot.jpg",
-        width: 800,
-        height: 1000,
-        alt: "Cody Ruff",
-      },
-    ],
+    images: [{ url: "/headshot.jpg", width: 800, height: 1000, alt: "Cody Ruff" }],
     type: "website",
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "Cody Ruff — Security Engineer",
-    images: ["/headshot.jpg"],
   },
 };
 
-/* ── Root Layout ── */
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html
       lang="en"
       className={`${barlowCondensed.variable} ${inter.variable} ${jetbrainsMono.variable}`}
     >
       <body className="bg-navy text-cream font-body antialiased">
+        <CustomCursor />
         {children}
       </body>
     </html>
   );
 }
-</file>
-
-<file path="src/app/page.tsx">
-"use client";
-
-import HexPattern from "@/components/ui/HexPattern";
-import AnimatedText from "@/components/ui/AnimatedText";
-
-export default function Home() {
-  return (
-    <main style={{ background: '#0A0E1A', padding: '40px', position: 'relative', minHeight: '100vh' }}>
-
-      <HexPattern />
-
-      {/* Hero name — letter by letter stagger */}
-    <AnimatedText
-      text="CODY RUFF"
-      as="h1"
-      className="font-display text-cream text-8xl relative z-10"
-      stagger={0.06}
-      delay={0.2}
-    />
-
-    {/* Subtitle — slightly faster stagger */}
-    <AnimatedText
-      text="Security Engineer · Builder · Stonehill 26"
-      as="p"
-      className="font-body text-sage text-xl relative z-10 mt-4"
-      stagger={0.02}
-      delay={0.8}
-    />
-
-    {/* Mono line */}
-    <AnimatedText
-      text="Connecting to Cody's World..."
-      as="p"
-      className="font-mono text-gold text-sm relative z-10 mt-4"
-      stagger={0.03}
-      delay={1.2}
-    />
-
-    </main>
-  );
-}
-</file>
-
-<file path="tailwind.config.ts">
-// tailwind.config.ts
-import type { Config } from "tailwindcss";
-
-const config: Config = {
-  content: ["./src/**/*.{ts,tsx}"],
-  theme: {
-    extend: {
-      colors: {
-        navy:  "#0A0E1A",
-        steel: "#1E3A5F",
-        gold:  "#B8962E",
-        sage:  "#7A9E7E",
-        cream: "#EDE8DC",
-        slate: "#141B2D",
-      },
-      fontFamily: {
-        display: ["var(--font-display)", "sans-serif"],
-        body:    ["var(--font-body)", "sans-serif"],
-        mono:    ["var(--font-mono)", "monospace"],
-        },
-    },
-  },
-  plugins: [],
-};
-
-export default config;
 </file>
 
 <file path="package.json">
@@ -802,21 +1422,49 @@ export default config;
 }
 </file>
 
+<file path="src/app/page.tsx">
+"use client";
+
+import { useState } from "react";
+import LoadingGlobe from "@/components/sections/LoadingGlobe";
+import Hero from "@/components/sections/Hero";
+
+export default function Home() {
+  const [loading, setLoading] = useState(true);
+
+  return (
+    <main className="relative bg-navy">
+      {loading && (
+        <LoadingGlobe onComplete={() => setLoading(false)} />
+      )}
+      {!loading && (
+        <>
+          <Hero />
+          {/* About, Projects, Skills, Contact added next */}
+        </>
+      )}
+    </main>
+  );
+}
+</file>
+
 <file path="src/app/globals.css">
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
 /* ─────────────────────────────────────────
-   ROOT VARIABLES
+   TAILWIND v4 THEME
 ───────────────────────────────────────── */
-:root {
-  --navy:  #0A0E1A;
-  --steel: #1E3A5F;
-  --gold:  #B8962E;
-  --sage:  #7A9E7E;
-  --cream: #EDE8DC;
-  --slate: #141B2D;
+@theme {
+  --color-navy:  #0A0E1A;
+  --color-steel: #1E3A5F;
+  --color-gold:  #B8962E;
+  --color-sage:  #7A9E7E;
+  --color-cream: #EDE8DC;
+  --color-slate: #141B2D;
+
+  --font-display: var(--font-display-next);
+  --font-body:    var(--font-body-next);
+  --font-mono:    var(--font-mono-next);
 }
 
 /* ─────────────────────────────────────────
@@ -835,9 +1483,6 @@ html {
   scroll-behavior: smooth;
   background-color: #0A0E1A;
   color: #EDE8DC;
-  font-family: 'Inter', sans-serif;
-  /* Hide default cursor everywhere — 
-     CustomCursor.tsx takes over */
   cursor: none;
 }
 
@@ -845,46 +1490,20 @@ body {
   background-color: #0A0E1A;
   min-height: 100vh;
   overflow-x: hidden;
-  /* Prevent white flash on load */
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
 /* ─────────────────────────────────────────
-   SCROLLBAR STYLING
-   (dark, minimal, matches palette)
+   SCROLLBAR
 ───────────────────────────────────────── */
-::-webkit-scrollbar {
-  width: 4px;
-}
-
-::-webkit-scrollbar-track {
-  background: #0A0E1A;
-}
-
-::-webkit-scrollbar-thumb {
-  background: #1E3A5F;
-  border-radius: 2px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: #B8962E;
-}
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: #0A0E1A; }
+::-webkit-scrollbar-thumb { background: #1E3A5F; border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: #B8962E; }
 
 /* ─────────────────────────────────────────
-   TYPOGRAPHY HELPERS
-───────────────────────────────────────── */
-.font-display {
-  font-family: var(--font-display);
-}
-
-.font-mono-custom {
-  font-family: var(--font-mono);
-}
-
-/* ─────────────────────────────────────────
-   SELECTION COLOR
-   (gold highlight when text is selected)
+   SELECTION
 ───────────────────────────────────────── */
 ::selection {
   background-color: #B8962E;
@@ -893,8 +1512,6 @@ body {
 
 /* ─────────────────────────────────────────
    SECTION BASE
-   (all sections full viewport height,
-    centered content by default)
 ───────────────────────────────────────── */
 section {
   position: relative;
@@ -905,32 +1522,20 @@ section {
 
 /* ─────────────────────────────────────────
    LOADING STATE
-   (locks scroll while globe loads)
 ───────────────────────────────────────── */
 body.is-loading {
   overflow: hidden;
 }
 
 /* ─────────────────────────────────────────
-   GOLD UNDERLINE UTILITY
-   (reusable accent line — used in Contact)
+   UTILITIES
 ───────────────────────────────────────── */
 .gold-rule {
   width: 100%;
   height: 1px;
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    #B8962E 30%,
-    #B8962E 70%,
-    transparent 100%
-  );
+  background: linear-gradient(90deg, transparent 0%, #B8962E 30%, #B8962E 70%, transparent 100%);
 }
 
-/* ─────────────────────────────────────────
-   HEX PATTERN CONTAINER
-   (ensures texture never bleeds outside section)
-───────────────────────────────────────── */
 .hex-pattern-container {
   position: absolute;
   inset: 0;
@@ -939,40 +1544,24 @@ body.is-loading {
 }
 
 /* ─────────────────────────────────────────
-   SMOOTH FADE-IN ANIMATION
-   (base utility — Framer Motion handles
-    most animations but this is fallback)
+   ANIMATIONS
 ───────────────────────────────────────── */
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(12px); }
   to   { opacity: 1; transform: translateY(0); }
 }
+.fade-in { animation: fadeIn 0.6s ease forwards; }
 
-.fade-in {
-  animation: fadeIn 0.6s ease forwards;
-}
-
-/* ─────────────────────────────────────────
-   GOLD BORDER TRACE ANIMATION
-   (used on headshot in About section)
-───────────────────────────────────────── */
 @keyframes traceRight {
   from { width: 0; }
   to   { width: 100%; }
 }
-
 @keyframes traceDown {
   from { height: 0; }
   to   { height: 100%; }
 }
-
-.trace-right {
-  animation: traceRight 0.8s ease forwards;
-}
-
-.trace-down {
-  animation: traceDown 0.8s ease 0.8s forwards;
-}
+.trace-right { animation: traceRight 0.8s ease forwards; }
+.trace-down  { animation: traceDown 0.8s ease 0.8s forwards; }
 </file>
 
 </files>
